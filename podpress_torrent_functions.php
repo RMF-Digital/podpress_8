@@ -1,4 +1,4 @@
-<?
+<?php
 function installTables() {
 	GLOBAL $dbhost, $dbuser, $dbpass, $database, $nav;
 	require_once("config.php");
@@ -8,11 +8,10 @@ if ($nav == "install") {
 		$makenamemap= 'CREATE TABLE BTPHP_namemap (info_hash char(40) NOT NULL default "", filename varchar(250) NOT NULL default "", url varchar(250) NOT NULL default "", info varchar(250) NOT NULL default "", PRIMARY KEY(info_hash))'; 	
 		$makesummary = 'CREATE TABLE BTPHP_summary (info_hash char(40) NOT NULL default "", dlbytes bigint unsigned NOT NULL default 0, seeds int unsigned NOT NULL default 0, leechers int unsigned NOT NULL default 0, finished int unsigned NOT NULL default 0, lastcycle int unsigned NOT NULL default "0", lastSpeedCycle int unsigned NOT NULL DEFAULT "0", speed bigint unsigned NOT NULL default 0, PRIMARY KEY (info_hash))';
 		$maketimestamps = 'CREATE TABLE BTPHP_timestamps (info_hash char(40) not null, sequence int unsigned not null auto_increment, bytes bigint unsigned not null, delta smallint unsigned not null, primary key(sequence), key sorting (info_hash))';
-		$db = mysql_connect($dbhost, $dbuser, $dbpass) or die("Can't connect to database: ".mysql_error()); 
-		mysql_select_db($database) or die("Can't select database: ".mysql_error());
-		mysql_query($makesummary) or die("Can't make the summary table: ".mysql_error());
-		mysql_query($makenamemap) or die("Can't make the namemap table: ".mysql_error());
-		mysql_query($maketimestamps) or die("Can't make the timestamps table: ".mysql_error());
+		$db = mysqli_connect($dbhost, $dbuser, $dbpass, $database) or die("Can't connect to database: ".mysqli_connect_error());
+		mysqli_query($db, $makesummary) or die("Can't make the summary table: ".mysqli_error($db));
+		mysqli_query($db, $makenamemap) or die("Can't make the namemap table: ".mysqli_error($db));
+		mysqli_query($db, $maketimestamps) or die("Can't make the timestamps table: ".mysqli_error($db));
 		print "<p>Tables installed in database, your tracker should now function.</p>";
 	}
 	else
@@ -27,8 +26,7 @@ function cleanUp () {
 	$summaryupdate = array();
 	
 	// Non-persistant: we lock tables!
-	$db = mysql_connect($dbhost, $dbuser, $dbpass) or die("<p class=\"error\">Tracker error: can't connect to database - ".mysql_error() . "</p>");
-	mysql_select_db($database) or die("<p class=\"error\">Tracker error: can't open database $database - ".mysql_error() . "</p>");
+	$db = mysqli_connect($dbhost, $dbuser, $dbpass, $database) or die("<p class=\"error\">Tracker error: can't connect to database - ".mysqli_connect_error() . "</p>");
 	
 	if (isset($_GET["nolock"]))
 		$locking = false;
@@ -55,11 +53,11 @@ function cleanUp () {
 	</tr>
 	<?php
 	
-	$results = mysql_query("SELECT BTPHP_summary.info_hash, seeds, leechers, dlbytes, BTPHP_namemap.filename FROM BTPHP_summary LEFT JOIN BTPHP_namemap ON BTPHP_summary.info_hash = BTPHP_namemap.info_hash");
+	$results = mysqli_query($db, "SELECT BTPHP_summary.info_hash, seeds, leechers, dlbytes, BTPHP_namemap.filename FROM BTPHP_summary LEFT JOIN BTPHP_namemap ON BTPHP_summary.info_hash = BTPHP_namemap.info_hash");
 	
 	$i = 0;
 	
-	while ($row = mysql_fetch_row($results))
+	while ($row = mysqli_fetch_row($results))
 	{
 		$writeout = "row" . $i % 2;
 		list($hash, $seeders, $leechers, $bytes, $filename) = $row;
@@ -70,7 +68,7 @@ function cleanUp () {
 			else
 				quickQuery("LOCK TABLES x$hash WRITE, summary WRITE");
 		}
-		$results2 = mysql_query("SELECT status, COUNT(status) from x$hash GROUP BY status");
+		$results2 = mysqli_query($db, "SELECT status, COUNT(status) from x$hash GROUP BY status");
 		echo "<tr class=\"$writeout\"><td>";
 		if (!is_null($filename))
 			echo $filename;
@@ -79,12 +77,12 @@ function cleanUp () {
 		echo "</td>";
 		if (!$results2)
 		{
-			echo "<td colspan=\"4\">Unable to process: ".mysql_error()."</td></tr>";
+			echo "<td colspan=\"4\">Unable to process: ".mysqli_error($db)."</td></tr>";
 			continue;
 		}
 	
 		$counts = array();
-		while ($row = mysql_fetch_row($results2))
+		while ($row = mysqli_fetch_row($results2))
 			$counts[$row[0]] = $row[1];	
 		if (!isset($counts["leecher"]))
 			$counts["leecher"] = 0;
@@ -122,39 +120,39 @@ function cleanUp () {
 		if ($GLOBALS["peercaching"])
 		{
 	
-			$result = mysql_query("SELECT x$hash.sequence FROM x$hash LEFT JOIN y$hash ON x$hash.sequence=y$hash.sequence WHERE y$hash.sequence IS NULL") or die(mysql_error());
-			if (mysql_num_rows($result) > 0)
+			$result = mysqli_query($db, "SELECT x$hash.sequence FROM x$hash LEFT JOIN y$hash ON x$hash.sequence=y$hash.sequence WHERE y$hash.sequence IS NULL") or die(mysqli_error($db));
+			if (mysqli_num_rows($result) > 0)
 			{
-				echo "Added ", mysql_num_rows($result);
+				echo "Added ", mysqli_num_rows($result);
 				$row = array();
 				
-				while ($data = mysql_fetch_row($result))
+				while ($data = mysqli_fetch_row($result))
 						$row[] = "sequence=\"${data[0]}\"";
 				$where = implode(" OR ", $row);
-				$query = mysql_query("SELECT * FROM x$hash WHERE $where");
+				$query = mysqli_query($db, "SELECT * FROM x$hash WHERE $where");
 				
-				while ($row = mysql_fetch_assoc($query))
+				while ($row = mysqli_fetch_assoc($query))
 				{
-					$compact = mysql_escape_string(pack('Nn', ip2long($row["ip"]), $row["port"]));
-						$peerid = mysql_escape_string('2:ip' . strlen($row["ip"]) . ':' . $row["ip"] . '7:peer id20:' . hex2bin($row["peer_id"]) . "4:porti{$row["port"]}e");
-					$no_peerid = mysql_escape_string('2:ip' . strlen($row["ip"]) . ':' . $row["ip"] . "4:porti{$row["port"]}e");
-					mysql_query("INSERT INTO y$hash SET sequence=\"{$row["sequence"]}\", compact=\"$compact\", with_peerid=\"$peerid\", without_peerid=\"$no_peerid\"");
+					$compact = mysqli_real_escape_string($db, pack('Nn', ip2long($row["ip"]), $row["port"]));
+						$peerid = mysqli_real_escape_string($db, '2:ip' . strlen($row["ip"]) . ':' . $row["ip"] . '7:peer id20:' . hex2bin($row["peer_id"]) . "4:porti{$row["port"]}e");
+					$no_peerid = mysqli_real_escape_string($db, '2:ip' . strlen($row["ip"]) . ':' . $row["ip"] . "4:porti{$row["port"]}e");
+					mysqli_query($db, "INSERT INTO y$hash SET sequence=\"{$row["sequence"]}\", compact=\"$compact\", with_peerid=\"$peerid\", without_peerid=\"$no_peerid\"");
 				}
 			}	
 			else
 				echo "Added: none";
 		
-			$result = mysql_query("SELECT y$hash.sequence FROM y$hash LEFT JOIN x$hash ON y$hash.sequence=x$hash.sequence WHERE x$hash.sequence IS NULL");
-			if (mysql_num_rows($result) > 0)
+			$result = mysqli_query($db, "SELECT y$hash.sequence FROM y$hash LEFT JOIN x$hash ON y$hash.sequence=x$hash.sequence WHERE x$hash.sequence IS NULL");
+			if (mysqli_num_rows($result) > 0)
 			{
-				echo ", Deleted: ",mysql_num_rows($result);
+				echo ", Deleted: ",mysqli_num_rows($result);
 		
 				$row = array();
 				
-				while ($data = mysql_fetch_row($result))
+				while ($data = mysqli_fetch_row($result))
 					$row[] = "sequence=\"${data[0]}\"";
 				$where = implode(" OR ", $row);
-				$query = mysql_query("DELETE FROM y$hash WHERE $where");
+				$query = mysqli_query($db, "DELETE FROM y$hash WHERE $where");
 			}
 			else
 				echo "<br>Deleted: none";
@@ -180,7 +178,7 @@ function cleanUp () {
 			{
 				$stuff .= ', '.$column. ($value[1] ? "=" : "=$column+") . $value[0];
 			}
-			mysql_query("UPDATE BTPHP_summary SET ".substr($stuff, 1)." WHERE info_hash=\"$hash\"");
+			mysqli_query($db, "UPDATE BTPHP_summary SET ".substr($stuff, 1)." WHERE info_hash=\"$hash\"");
 			$summaryupdate = array();
 		}
 	}
@@ -209,8 +207,7 @@ function delTorrent() {
 	require_once("config.php");
 	require_once("funcsv2.php");
 	
-	$db = mysql_connect($dbhost, $dbuser, $dbpass) or die("<p class=\"error\">Couldn't connect to database. contact the administrator</p>");
-	mysql_select_db($database) or die("Error selecting database.");
+	$db = mysqli_connect($dbhost, $dbuser, $dbpass, $database) or die("<p class=\"error\">Couldn't connect to database. contact the administrator</p>");
 	print " <form enctype=\"multipart/form-data\" method=\"post\" action=\"".$_SERVER['PHP_SELF']."?nav=delete\"> ";
 	foreach ($_POST as $left => $right)
 	{
@@ -219,11 +216,11 @@ function delTorrent() {
 			if (!stristr($right,'y') || !verifyHash(substr($left, 1)))
 				continue;
 			$hash = substr($left, 1);
-			@mysql_query("DELETE FROM BTPHP_summary WHERE info_hash=\"$hash\"");
-			@mysql_query("DELETE FROM BTPHP_namemap WHERE info_hash=\"$hash\""); 
-			@mysql_query("DELETE FROM BTPHP_timestamps WHERE info_hash=\"$hash\"");
-			@mysql_query("DROP TABLE y$hash");
-			@mysql_query("DROP TABLE x$hash");
+			@mysqli_query($db, "DELETE FROM BTPHP_summary WHERE info_hash=\"$hash\"");
+			@mysqli_query($db, "DELETE FROM BTPHP_namemap WHERE info_hash=\"$hash\"");
+			@mysqli_query($db, "DELETE FROM BTPHP_timestamps WHERE info_hash=\"$hash\"");
+			@mysqli_query($db, "DROP TABLE y$hash");
+			@mysqli_query($db, "DROP TABLE x$hash");
 		}
 	}
 	
@@ -243,12 +240,12 @@ function delTorrent() {
 	</tr>
 	<?php
 	
-	$results = mysql_query("SELECT BTPHP_summary.info_hash, BTPHP_summary.seeds, BTPHP_summary.leechers, format(BTPHP_summary.finished,0), format(BTPHP_summary.dlbytes/1073741824,3),BTPHP_namemap.filename FROM BTPHP_summary LEFT JOIN BTPHP_namemap ON BTPHP_summary.info_hash = BTPHP_namemap.info_hash ORDER BY BTPHP_namemap.filename")
-	or die(mysql_error());
+	$results = mysqli_query($db, "SELECT BTPHP_summary.info_hash, BTPHP_summary.seeds, BTPHP_summary.leechers, format(BTPHP_summary.finished,0), format(BTPHP_summary.dlbytes/1073741824,3),BTPHP_namemap.filename FROM BTPHP_summary LEFT JOIN BTPHP_namemap ON BTPHP_summary.info_hash = BTPHP_namemap.info_hash ORDER BY BTPHP_namemap.filename")
+	or die(mysqli_error($db));
 	
 	$i = 0;
 	
-	while ($data = mysql_fetch_row($results)) {
+	while ($data = mysqli_fetch_row($results)) {
 		$writeout = "row" . $i % 2;
 		$hash = $data[0];
 		if (is_null($data[5]))
@@ -274,7 +271,7 @@ function delTorrent() {
 	Clicking this button is final.</p>
 	<p class="center"><input type="submit" value="Delete" /></p>
 	</form> 
-<? // End Function
+<?php // End Function
 }
 
 function doCrash($msg)
@@ -298,8 +295,7 @@ function addTorrent() {
 	
 		$hash = strtolower($_POST["hash"]);
 	
-		$db = mysql_connect($dbhost, $dbuser, $dbpass) or die("<p class=\"error\">Couldn't connect to database. contact the administrator</p>");
-		mysql_select_db($database) or die("<p class=\"error\">Can't open the database.</p>");
+		$db = mysqli_connect($dbhost, $dbuser, $dbpass, $database) or die("<p class=\"error\">Couldn't connect to database. contact the administrator</p>");
 	
 	
 		if (isset($_FILES["torrent"]))
@@ -351,9 +347,9 @@ function addTorrent() {
 			}
 		}
 		
-		$filename = mysql_escape_string($filename);
-		$url = mysql_escape_string($url);
-		$info = mysql_escape_string($info);
+		$filename = mysqli_real_escape_string($db, $filename);
+		$url = mysqli_real_escape_string($db, $url);
+		$info = mysqli_real_escape_string($db, $info);
 	
 		if ((strlen($hash) != 40) || !verifyHash($hash))
 		{
@@ -450,8 +446,7 @@ function myStats() {
 		</tr>
 		
 	<?php  
-		$db = mysql_connect($dbhost, $dbuser, $dbpass) or doCrash("Tracker error: can't connect to database - ".mysql_error());
-	mysql_select_db($database) or doCrash("Tracker error: can't open database $database - ".mysql_error());
+		$db = mysqli_connect($dbhost, $dbuser, $dbpass, $database) or doCrash("Tracker error: can't connect to database - ".mysqli_connect_error());
 	
 	
 	if (isset($_GET["seededonly"]))
@@ -467,10 +462,10 @@ function myStats() {
 	else
 		$bytes = '0';
 	$query = "SELECT BTPHP_summary.info_hash, BTPHP_summary.seeds, BTPHP_summary.leechers, format(BTPHP_summary.finished,0), $bytes, BTPHP_namemap.filename, BTPHP_namemap.url, BTPHP_namemap.info, BTPHP_summary.speed FROM BTPHP_summary LEFT JOIN BTPHP_namemap ON BTPHP_summary.info_hash = BTPHP_namemap.info_hash $where ORDER BY BTPHP_namemap.filename";
-	$results = mysql_query($query) or doCrash("Can't do SQL query - ".mysql_error());
+	$results = mysqli_query($db, $query) or doCrash("Can't do SQL query - ".mysqli_error($db));
 	$i = 0;
 	
-	while ($data = mysql_fetch_row($results)) {
+	while ($data = mysqli_fetch_row($results)) {
 		// NULLs are such a pain at times. isset($nullvar) == false
 		if (is_null($data[5]))
 			$data[5] = $data[0];
@@ -517,7 +512,7 @@ function myStats() {
 		</table></td></tr>
 	</table>
  
- <?
+ <?php
 // End Function 
 };
 ?>

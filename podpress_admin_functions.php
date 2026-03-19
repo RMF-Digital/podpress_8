@@ -1134,7 +1134,7 @@ License:
 		
 		podPress_var_dump('podPress_getID3tags - before inclusion of the getID3 library');
 		
-		require_once(ABSPATH.PLUGINDIR.'/podpress_8/getid3/getid3.php');
+		require_once(dirname(__FILE__).'/getid3/getid3.php');
 		$getID3 = new getID3;
 		if ($getID3 == false) {
 			$fileinfo['error'] = __('Remote MP3 File could not be read. (error loading ID3 reader)', 'podpress');

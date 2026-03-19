@@ -24,6 +24,6 @@ if(!defined('PLUGINDIR')) {
 	header('Location: '.substr($_SERVER['REQUEST_URI'], 0, $pos).'wp-admin/admin.php?page=podpress/podpress_podango.php');
 	exit;
 }
-require_once(ABSPATH.PLUGINDIR.'/podpress_8/podpress.php');
+require_once(dirname(__FILE__).'/podpress.php');
 podPress_isAuthorized();
 $podPress->settings_podango_edit();

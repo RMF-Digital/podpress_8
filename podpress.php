@@ -1,5 +1,5 @@
 <?php
-define('PODPRESS_VERSION', '8.8.10.17');
+define('PODPRESS_VERSION', '8.8.20');
 /*
 Info for WordPress:
 ==============================================================================

@@ -18,10 +18,9 @@ require_once("funcsv2.php");
 
 // Prep database
 if ($GLOBALS["persist"])
-	$db = @mysql_pconnect($dbhost, $dbuser, $dbpass) or showError("Tracker error: can't connect to database. Contact the webmaster.");
+	$db = @mysqli_connect("p:".$dbhost, $dbuser, $dbpass, $database) or showError("Tracker error: can't connect to database. Contact the webmaster.");
 else
-	$db = @mysql_connect($dbhost, $dbuser, $dbpass) or showError("Tracker error: can't connect to database. Contact the webmaster.");
-@mysql_select_db($database) or showError("Tracker error: can't open database. Contact the webmaster");
+	$db = @mysqli_connect($dbhost, $dbuser, $dbpass, $database) or showError("Tracker error: can't connect to database. Contact the webmaster.");
 
 
 /* 
@@ -67,21 +66,21 @@ if (substr($_SERVER["PATH_INFO"],-7) == '/scrape')
 		$usehash = true;
 	}
 	if ($usehash)
-		$query = mysql_query("SELECT info_hash, filename FROM BTPHP_namemap WHERE info_hash=\"$info_hash\"");
+		$query = mysqli_query($db, "SELECT info_hash, filename FROM BTPHP_namemap WHERE info_hash=\"$info_hash\"");
 	else
-		$query = mysql_query("SELECT info_hash, filename FROM BTPHP_namemap");
+		$query = mysqli_query($db, "SELECT info_hash, filename FROM BTPHP_namemap");
 	$namemap = array();
-	while ($row = mysql_fetch_row($query))
+	while ($row = mysqli_fetch_row($query))
 		$namemap[$row[0]] = $row[1];
 
 	if ($usehash)
-		$query = mysql_query("SELECT info_hash, seeds, leechers, finished FROM BTPHP_summary WHERE info_hash=\"$info_hash\"") or showError("Database error. Cannot complete request.");
+		$query = mysqli_query($db, "SELECT info_hash, seeds, leechers, finished FROM BTPHP_summary WHERE info_hash=\"$info_hash\"") or showError("Database error. Cannot complete request.");
 	else
-		$query = mysql_query("SELECT info_hash, seeds, leechers, finished FROM BTPHP_summary ORDER BY info_hash") or showError("Database error. Cannot complete request.");
+		$query = mysqli_query($db, "SELECT info_hash, seeds, leechers, finished FROM BTPHP_summary ORDER BY info_hash") or showError("Database error. Cannot complete request.");
 
 	echo "d5:filesd";
 
-	while ($row = mysql_fetch_row($query))
+	while ($row = mysqli_fetch_row($query))
 	{
 		$hash = hex2bin($row[0]);
 		echo "20:".$hash."d";
@@ -128,7 +127,7 @@ if (!isset($_GET["port"]) || !isset($_GET["downloaded"]) || !isset($_GET["upload
 	showError("Invalid information received from BitTorrent client");
 
 $port = $_GET["port"];
-$ip = mysql_escape_string(str_replace("::ffff:", "", $_SERVER["REMOTE_ADDR"]));
+$ip = mysqli_real_escape_string($db, str_replace("::ffff:", "", $_SERVER["REMOTE_ADDR"]));
 $downloaded = $_GET["downloaded"];
 $uploaded = $_GET["uploaded"];
 $left = $_GET["left"];
@@ -149,7 +148,7 @@ if (isset($_GET["numwant"]))
 if (isset($_GET["trackerid"]))
 {	
 	if (is_numeric($_GET["trackerid"]))
-		$GLOBALS["trackerid"] = mysql_escape_string($_GET["trackerid"]);
+		$GLOBALS["trackerid"] = mysqli_real_escape_string($db, $_GET["trackerid"]);
 }
 if (!is_numeric($port) || !is_numeric($downloaded) || !is_numeric($uploaded) || !is_numeric($left))
 	showError("Invalid numerical field(s) from client");
@@ -171,6 +170,7 @@ if (!isset($GLOBALS["peercaching"]))
 
 function start($info_hash, $ip, $port, $peer_id, $left)
 {
+	global $db;
 	if (isset($_SERVER["HTTP_X_FORWARDED_FOR"]))
 	{
       foreach(explode(",",$_SERVER["HTTP_X_FORWARDED_FOR"]) as $address)
@@ -201,7 +201,7 @@ function start($info_hash, $ip, $port, $peer_id, $left)
 			else
 			{
 				// Finally, we can accept it as a "real" ip address.
-				$ip = mysql_escape_string(trim($address));
+				$ip = mysqli_real_escape_string($db, trim($address));
 				break;
 			}
 		}
@@ -213,7 +213,7 @@ function start($info_hash, $ip, $port, $peer_id, $left)
 		// compact check: valid IP address:
 		if (ip2long($_GET["ip"]) == -1)
 			showError("Invalid IP address. Must be standard dotted decimal (hostnames not allowed)");
-		$ip = mysql_escape_string($_GET["ip"]);
+		$ip = mysqli_real_escape_string($db, $_GET["ip"]);
 	}
 
 	if ($left == 0)
@@ -225,12 +225,12 @@ function start($info_hash, $ip, $port, $peer_id, $left)
 	else
 		$nat = "'N'";
 	
-	$results = @mysql_query("INSERT INTO x$info_hash SET peer_id=\"$peer_id\", port=\"$port\", ip=\"$ip\", lastupdate=UNIX_TIMESTAMP(), bytes=\"$left\", status=\"$status\", natuser=$nat");
+	$results = @mysqli_query($db, "INSERT INTO x$info_hash SET peer_id=\"$peer_id\", port=\"$port\", ip=\"$ip\", lastupdate=UNIX_TIMESTAMP(), bytes=\"$left\", status=\"$status\", natuser=$nat");
 
 	// Special case: duplicated peer_id. 
 	if (!$results)
 	{
-		$error = mysql_error();
+		$error = mysqli_error($db);
 		if (stristr($error, "key"))
 		{
 			// Duplicate peer_id! Check IP address
@@ -249,13 +249,13 @@ function start($info_hash, $ip, $port, $peer_id, $left)
 		error_log("PHPBTTracker: start: ".$error);
 		showError("Tracker/database error. The details are in the error log.");
 	}
-	$GLOBALS["trackerid"] = mysql_insert_id();
+	$GLOBALS["trackerid"] = mysqli_insert_id($db);
 	if ($GLOBALS["peercaching"])
 	{
-		$compact = mysql_escape_string(pack('Nn', ip2long($ip), $port));
-		$peerid = mysql_escape_string('2:ip' . strlen($ip) . ':' . $ip . '7:peer id20:' . hex2bin($peer_id) . "4:porti{$port}e");
-		$no_peerid = mysql_escape_string('2:ip' . strlen($ip) . ':' . $ip . "4:porti{$port}e");
-		mysql_query("INSERT INTO y$info_hash SET sequence=\"{$GLOBALS["trackerid"]}\", compact=\"$compact\", with_peerid=\"$peerid\", without_peerid=\"$no_peerid\"");
+		$compact = mysqli_real_escape_string($db, pack('Nn', ip2long($ip), $port));
+		$peerid = mysqli_real_escape_string($db, '2:ip' . strlen($ip) . ':' . $ip . '7:peer id20:' . hex2bin($peer_id) . "4:porti{$port}e");
+		$no_peerid = mysqli_real_escape_string($db, '2:ip' . strlen($ip) . ':' . $ip . "4:porti{$port}e");
+		mysqli_query($db, "INSERT INTO y$info_hash SET sequence=\"{$GLOBALS["trackerid"]}\", compact=\"$compact\", with_peerid=\"$peerid\", without_peerid=\"$no_peerid\"");
 		// Let's just assume success... :/
 	}
 	if ($left == 0)
@@ -290,8 +290,8 @@ if ($event == '')
 	if ($peer_exists["bytes"] != 0 && $left == 0)
 	{
 
-		quickQuery("UPDATE x$info_hash SET bytes=0, status=\"seeder\" WHERE sequence=\"${GLOBALS["trackerid"]}");
-		if (mysql_affected_rows() == 1)
+		quickQuery("UPDATE x$info_hash SET bytes=0, status=\"seeder\" WHERE sequence=\"${GLOBALS["trackerid"]}\"");
+		if (mysqli_affected_rows($db) == 1)
 		{
 			summaryAdd("leechers", -1);
 			summaryAdd("seeds", 1);
@@ -352,7 +352,7 @@ else if ($event == "completed") // now the same as an empty string
 		quickQuery("UPDATE x$info_hash SET bytes=0, status=\"seeder\" WHERE sequence=\"${GLOBALS["trackerid"]}\"");
 
 		// Race check
-		if (mysql_affected_rows() == 1) 
+		if (mysqli_affected_rows($db) == 1)
 		{
 			summaryAdd("leechers", -1);
 			summaryAdd("seeds", 1);
@@ -373,8 +373,8 @@ else
 if ($GLOBALS["countbytes"])
 {
 	// Once every minute or so, we run the speed update checker.
-	$query = @mysql_query("SELECT UNIX_TIMESTAMP() - lastSpeedCycle FROM BTPHP_summary WHERE info_hash=\"$info_hash\"");
-	$results = mysql_fetch_row($query);
+	$query = @mysqli_query($db, "SELECT UNIX_TIMESTAMP() - lastSpeedCycle FROM BTPHP_summary WHERE info_hash=\"$info_hash\"");
+	$results = mysqli_fetch_row($query);
 	if ($results[0] >= 60)
 	{
 		if (Lock("SPEED:$info_hash"))
@@ -403,7 +403,7 @@ if (!empty($summaryupdate))
 	{
 		$stuff .= ', '.$column. ($value[1] ? "=" : "=$column+") . $value[0];
 	}
-	mysql_query("UPDATE BTPHP_summary SET ".substr($stuff, 1)." WHERE info_hash=\"$info_hash\"");
+	mysqli_query($db, "UPDATE BTPHP_summary SET ".substr($stuff, 1)." WHERE info_hash=\"$info_hash\"");
 }
 
 // EOF

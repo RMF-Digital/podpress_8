@@ -1494,9 +1494,6 @@ class podPressAdmin_class extends podPress_class {
 		$file     = 'share-regular.ttf';
 		$fontface = PODPRESS_DIR.'/optional_files/'.$file;
 		if (!file_exists($fontface)) {
-			$fontface = ABSPATH.PLUGINDIR.'/podpress_8/optional_files/'.$file;
-		}
-		if (!file_exists($fontface)) {
 			$fontface = '../optional_files/'.$file;
 		}
 		if (!is_readable($fontface)) {
