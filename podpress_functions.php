@@ -2132,7 +2132,7 @@ if (!function_exists('podpress_safe_strftime')) {
 		$lang = addslashes(podPress_determineLanguage());
 		$ref = addslashes($_SERVER['HTTP_REFERER']);
 		$url = parse_url($ref);
-		$domain = addslashes(eregi_replace('^www.','',$url['host']));
+		$domain = addslashes(preg_replace('/^www\./i','',$url['host']));
 		//$res = $_SERVER['REQUEST_URI'];
 		$ua = addslashes($_SERVER['HTTP_USER_AGENT']);
 		$br = podPress_parseUserAgent($_SERVER['HTTP_USER_AGENT']);

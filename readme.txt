@@ -4,7 +4,7 @@ Contributors: seek3r, macx, iscifi, ntm
 Donate link: http://www.manvswebapp.com/podpress/podpress-donors
 Requires at least: 2.3
 Tested up to: 3.5.1
-Stable Tag: 8.8.10.13
+Stable Tag: 8.8.20
 License: GPLv2 or later
 
 A plugin for Podcasters using WordPress.

@@ -58,11 +58,11 @@ if ( isset($_GET['action']) OR isset($_POST['action']) ) {
 			die('Error: could not find wp-config.php.');
 		}
 
-		require_once(ABSPATH.PLUGINDIR.'/podpress_8/podpress_admin_functions.php');
+		require_once(dirname(__FILE__).'/podpress_admin_functions.php');
 
 		$customThemeFile = ABSPATH.'/wp-content/themes/'.get_option('template').'/podpress_theme.php';
 		if ( FALSE === file_exists($customThemeFile) ) {
-			$customThemeFile = ABSPATH.PLUGINDIR.'/podpress_8/podpress_theme.php';
+			$customThemeFile = dirname(__FILE__).'/podpress_theme.php';
 		}
 
 		if ( FALSE == isset($_GET['action']) OR TRUE == empty($_GET['action']) ) {
@@ -125,7 +125,7 @@ if ( isset($_GET['action']) OR isset($_POST['action']) ) {
 			break;
 			case 'upgradeaction' :
 				if ( isset($_POST['_ajax_nonce']) AND TRUE == function_exists('wp_verify_nonce') AND TRUE == wp_verify_nonce($_POST['_ajax_nonce'], $nonce_key) ) {
-					require_once(ABSPATH.PLUGINDIR.'/podpress_8/podpress_upgrade_functions.php');
+					require_once(dirname(__FILE__).'/podpress_upgrade_functions.php');
 					podPress_upgrade_via_ajax($_POST['upgr_process_nr'], $_POST['podpress_upgr_misc']);
 				} else {
 					die('Error: Security check failed.');
@@ -133,7 +133,7 @@ if ( isset($_GET['action']) OR isset($_POST['action']) ) {
 			break;
 			case 'curnrofrows' : // is an upgrade action
 				if ( isset($_POST['_ajax_nonce']) AND TRUE == function_exists('wp_verify_nonce') AND TRUE == wp_verify_nonce($_POST['_ajax_nonce'], $nonce_key) ) {
-					require_once(ABSPATH.PLUGINDIR.'/podpress_8/podpress_upgrade_functions.php');
+					require_once(dirname(__FILE__).'/podpress_upgrade_functions.php');
 					podPress_current_nr_of_rows($_POST['podpress_upgr_misc']['table'], 'false', $_POST['upgr_process_nr'], 'ajax');
 				} else {
 					die('Error: Security check failed.');
@@ -141,7 +141,7 @@ if ( isset($_GET['action']) OR isset($_POST['action']) ) {
 			break;
 			case 'printupgradeform' : // is an upgrade action
 				if ( isset($_POST['_ajax_nonce']) AND TRUE == function_exists('wp_verify_nonce') AND TRUE == wp_verify_nonce($_POST['_ajax_nonce'], $nonce_key) ) {
-					require_once(ABSPATH.PLUGINDIR.'/podpress_8/podpress_upgrade_functions.php');
+					require_once(dirname(__FILE__).'/podpress_upgrade_functions.php');
 					if ( isset($_POST['podpress_upgr_misc']['table']) AND ('stats' == $_POST['podpress_upgr_misc']['table'] OR 'statcounts' == $_POST['podpress_upgr_misc']['table']) ) {
 						if ( isset($_POST['podpress_upgr_misc']['isinit']) AND ('false' == $_POST['podpress_upgr_misc']['isinit'] OR 'true' == $_POST['podpress_upgr_misc']['isinit']) ) {
 							podPress_print_upgrade_form($_POST['podpress_upgr_misc']['table'], $_POST['podpress_upgr_misc']['isinit']);

@@ -30,7 +30,7 @@ License:
 				$current = '0';
 			}
 		
-			require_once(ABSPATH.PLUGINDIR.'/podpress_8/podpress_admin_functions.php');
+			require_once(dirname(__FILE__).'/podpress_admin_functions.php');
 			
 			if ( TRUE === version_compare(PODPRESS_VERSION, $current, '<=') ) {
 				// if the version in the DB is the same as or newer than the version of this plugin then an upgrade is not nescessary
